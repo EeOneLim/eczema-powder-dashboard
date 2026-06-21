@@ -1,65 +1,284 @@
-import Image from "next/image";
+'use client'
 
-export default function Home() {
+import { useEffect, useState, useCallback } from 'react'
+import dynamic from 'next/dynamic'
+import { useRouter } from 'next/navigation'
+
+const Chart = dynamic(() => import('@/components/Chart'), { ssr: false })
+
+interface DayRow {
+  date: string
+  revenue: number
+  orders: number
+  spend: number
+  roas: number
+}
+
+interface Metrics {
+  shopify: { total_revenue: number; total_orders: number } | null
+  meta: { total_spend: number; total_impressions: number; total_clicks: number } | null
+  combined: DayRow[]
+  errors: { shopify: string | null; meta: string | null }
+}
+
+type Preset = '7' | '30' | '90'
+
+function toDateStr(d: Date) {
+  return d.toISOString().slice(0, 10)
+}
+
+function getPresetRange(days: number): [string, string] {
+  const end = new Date()
+  end.setHours(0, 0, 0, 0)
+  const start = new Date(end)
+  start.setDate(start.getDate() - days + 1)
+  return [toDateStr(start), toDateStr(end)]
+}
+
+function fmt(n: number) {
+  return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+function fmtRoas(n: number) {
+  return n > 0 ? n.toFixed(2) + '×' : '—'
+}
+
+function SummaryCard({
+  label,
+  value,
+  sub,
+  color,
+}: {
+  label: string
+  value: string
+  sub?: string
+  color: string
+}) {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="bg-white rounded-xl border border-gray-200 p-5">
+      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">{label}</p>
+      <p className={`text-2xl font-semibold mt-1 ${color}`}>{value}</p>
+      {sub && <p className="text-xs text-gray-400 mt-1">{sub}</p>}
+    </div>
+  )
+}
+
+function formatTableDate(dateStr: string) {
+  const d = new Date(dateStr + 'T00:00:00')
+  return d.toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+export default function DashboardPage() {
+  const router = useRouter()
+  const [preset, setPreset] = useState<Preset>('30')
+  const [customStart, setCustomStart] = useState('')
+  const [customEnd, setCustomEnd] = useState('')
+  const [useCustom, setUseCustom] = useState(false)
+  const [metrics, setMetrics] = useState<Metrics | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  const fetchMetrics = useCallback(async (start: string, end: string) => {
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/metrics?start=${start}&end=${end}`)
+      const data = await res.json()
+      setMetrics(data)
+    } catch {
+      setMetrics(null)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (useCustom) {
+      if (customStart && customEnd && customStart <= customEnd) {
+        fetchMetrics(customStart, customEnd)
+      }
+    } else {
+      const [start, end] = getPresetRange(parseInt(preset))
+      fetchMetrics(start, end)
+    }
+  }, [preset, customStart, customEnd, useCustom, fetchMetrics])
+
+  function handleLogout() {
+    document.cookie = 'dash_auth=; max-age=0; path=/'
+    router.push('/login')
+  }
+
+  const totalRevenue = metrics?.shopify?.total_revenue ?? 0
+  const totalOrders = metrics?.shopify?.total_orders ?? 0
+  const totalSpend = metrics?.meta?.total_spend ?? 0
+  const roas = totalSpend > 0 ? totalRevenue / totalSpend : 0
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+        <div>
+          <h1 className="text-base font-semibold text-gray-900">Eczema Powder</h1>
+          <p className="text-xs text-gray-500">Ads &amp; Sales Dashboard</p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+        <button
+          onClick={handleLogout}
+          className="text-xs text-gray-500 hover:text-gray-700 transition-colors"
+        >
+          Sign out
+        </button>
+      </header>
+
+      <main className="max-w-6xl mx-auto px-6 py-8 space-y-6">
+        {/* Error banners */}
+        {metrics?.errors.shopify && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
+            <strong>Shopify:</strong>{' '}
+            {metrics.errors.shopify.includes('not connected') ? (
+              <>Not connected. <a href="/setup" className="underline">Complete setup →</a></>
+            ) : (
+              metrics.errors.shopify
+            )}
+          </div>
+        )}
+        {metrics?.errors.meta && (
+          <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-800">
+            <strong>Meta:</strong>{' '}
+            {metrics.errors.meta.includes('META_TOKEN_EXPIRED')
+              ? 'Access token expired. Go to developers.facebook.com/tools/explorer to generate a new token and update META_ACCESS_TOKEN in Vercel.'
+              : metrics.errors.meta}
+          </div>
+        )}
+
+        {/* Date range selector */}
+        <div className="flex flex-wrap items-center gap-2">
+          {(['7', '30', '90'] as Preset[]).map((p) => (
+            <button
+              key={p}
+              onClick={() => { setPreset(p); setUseCustom(false) }}
+              className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                !useCustom && preset === p
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-white border border-gray-200 text-gray-600 hover:border-indigo-300'
+              }`}
+            >
+              Last {p} days
+            </button>
+          ))}
+          <span className="text-gray-300 hidden sm:block">|</span>
+          <input
+            type="date"
+            value={customStart}
+            onChange={(e) => { setCustomStart(e.target.value); setUseCustom(true) }}
+            className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+          <span className="text-sm text-gray-400">to</span>
+          <input
+            type="date"
+            value={customEnd}
+            onChange={(e) => { setCustomEnd(e.target.value); setUseCustom(true) }}
+            className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+        </div>
+
+        {/* Summary cards */}
+        {loading ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="bg-white rounded-xl border border-gray-200 p-5 animate-pulse">
+                <div className="h-3 bg-gray-200 rounded w-24 mb-3" />
+                <div className="h-7 bg-gray-200 rounded w-32" />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <SummaryCard
+              label="Revenue"
+              value={fmt(totalRevenue)}
+              sub={`${totalOrders} orders`}
+              color="text-emerald-600"
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+            <SummaryCard
+              label="Ad Spend"
+              value={fmt(totalSpend)}
+              sub={`${(metrics?.meta?.total_clicks ?? 0).toLocaleString()} clicks`}
+              color="text-amber-600"
+            />
+            <SummaryCard
+              label="ROAS"
+              value={fmtRoas(roas)}
+              sub="Revenue ÷ Spend"
+              color="text-indigo-600"
+            />
+            <SummaryCard
+              label="Orders"
+              value={totalOrders.toLocaleString()}
+              sub={totalRevenue > 0 && totalOrders > 0 ? `Avg ${fmt(totalRevenue / totalOrders)}` : undefined}
+              color="text-purple-600"
+            />
+          </div>
+        )}
+
+        {/* Chart */}
+        <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <h2 className="text-sm font-semibold text-gray-700 mb-4">Revenue vs Ad Spend</h2>
+          {loading ? (
+            <div className="h-64 animate-pulse bg-gray-100 rounded-lg" />
+          ) : (
+            <Chart data={metrics?.combined ?? []} />
+          )}
         </div>
+
+        {/* Daily table */}
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100">
+            <h2 className="text-sm font-semibold text-gray-700">Daily Breakdown</h2>
+          </div>
+          {loading ? (
+            <div className="p-6 animate-pulse space-y-3">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="h-4 bg-gray-100 rounded" />
+              ))}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 text-left">
+                    <th className="px-6 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Date</th>
+                    <th className="px-6 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide text-right">Revenue</th>
+                    <th className="px-6 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide text-right">Orders</th>
+                    <th className="px-6 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide text-right">Ad Spend</th>
+                    <th className="px-6 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide text-right">ROAS</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {(metrics?.combined ?? []).length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-6 py-8 text-center text-gray-400">
+                        No data for this period
+                      </td>
+                    </tr>
+                  ) : (
+                    [...(metrics?.combined ?? [])].reverse().map((row) => (
+                      <tr key={row.date} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-6 py-3 text-gray-700">{formatTableDate(row.date)}</td>
+                        <td className="px-6 py-3 text-right text-emerald-700 font-medium">{fmt(row.revenue)}</td>
+                        <td className="px-6 py-3 text-right text-gray-600">{row.orders}</td>
+                        <td className="px-6 py-3 text-right text-amber-700">{fmt(row.spend)}</td>
+                        <td className="px-6 py-3 text-right text-indigo-700 font-medium">{fmtRoas(row.roas)}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        <p className="text-xs text-gray-400 text-center pb-4">
+          Revenue from Shopify orders · Ad Spend from Meta · ROAS = Revenue ÷ Ad Spend (blended)
+        </p>
       </main>
     </div>
-  );
+  )
 }
