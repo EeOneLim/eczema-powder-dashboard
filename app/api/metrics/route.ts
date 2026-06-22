@@ -29,10 +29,19 @@ export async function GET(request: NextRequest) {
         : null,
   }
 
-  const allDates = new Set([
-    ...(shopify?.daily.map((d) => d.date) ?? []),
-    ...(meta?.daily.map((d) => d.date) ?? []),
-  ])
+  // Build a complete set of every calendar date in the requested range,
+  // so days with zero orders and zero spend still appear in the table.
+  const allDates = new Set<string>()
+  const cursor = new Date(start + 'T00:00:00Z')
+  const last   = new Date(end   + 'T00:00:00Z')
+  while (cursor <= last) {
+    allDates.add(cursor.toISOString().slice(0, 10))
+    cursor.setUTCDate(cursor.getUTCDate() + 1)
+  }
+  // Also include any dates the APIs returned outside the range (shouldn't happen, but be safe)
+  for (const d of [...(shopify?.daily.map((d) => d.date) ?? []), ...(meta?.daily.map((d) => d.date) ?? [])]) {
+    allDates.add(d)
+  }
 
   const combined = Array.from(allDates)
     .sort()
