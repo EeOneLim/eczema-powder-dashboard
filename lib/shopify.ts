@@ -23,7 +23,7 @@ export async function getShopifyMetrics(
   const orders: Array<{ total_price: string; created_at: string }> = []
   let nextUrl: string | null =
     `https://${store}/admin/api/2024-01/orders.json` +
-    `?status=any&created_at_min=${startDate}T00:00:00Z&created_at_max=${endDate}T23:59:59Z` +
+    `?status=any&created_at_min=${startDate}T00:00:00+08:00&created_at_max=${endDate}T23:59:59+08:00` +
     `&fields=total_price,created_at&limit=250`
 
   while (nextUrl) {
