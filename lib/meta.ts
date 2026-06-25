@@ -27,18 +27,26 @@ export async function getMetaMetrics(
     `https://graph.facebook.com/v19.0/act_${accountId}/insights` +
     `?time_range=${timeRange}&time_increment=1&fields=spend,impressions,clicks&access_token=${token}`
 
-  const res = await fetch(url, { cache: 'no-store' })
-  const json = await res.json()
+  const allData: Record<string, string>[] = []
+  let nextUrl: string | null = url
 
-  if (json.error) {
-    const msg = json.error.message as string
-    if (json.error.code === 190) {
-      throw new Error('META_TOKEN_EXPIRED:' + msg)
+  while (nextUrl) {
+    const res = await fetch(nextUrl, { cache: 'no-store' })
+    const json = await res.json()
+
+    if (json.error) {
+      const msg = json.error.message as string
+      if (json.error.code === 190) {
+        throw new Error('META_TOKEN_EXPIRED:' + msg)
+      }
+      throw new Error(`Meta API: ${msg}`)
     }
-    throw new Error(`Meta API: ${msg}`)
+
+    allData.push(...(json.data ?? []))
+    nextUrl = json.paging?.next ?? null
   }
 
-  const daily: MetaDay[] = (json.data ?? []).map(
+  const daily: MetaDay[] = allData.map(
     (d: Record<string, string>) => ({
       date: d.date_start,
       spend: parseFloat(d.spend ?? '0'),
