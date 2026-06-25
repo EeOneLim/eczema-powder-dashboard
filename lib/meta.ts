@@ -31,7 +31,8 @@ export async function getMetaMetrics(
   let nextUrl: string | null = url
 
   while (nextUrl) {
-    const res = await fetch(nextUrl, { cache: 'no-store' })
+    const pageUrl: string = nextUrl
+    const res = await fetch(pageUrl, { cache: 'no-store' })
     const json = await res.json()
 
     if (json.error) {
