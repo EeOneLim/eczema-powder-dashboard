@@ -55,6 +55,7 @@ export async function GET(request: NextRequest) {
         revenue,
         orders: s?.orders ?? 0,
         spend,
+        clicks: m?.clicks ?? 0,
         roas: spend > 0 ? parseFloat((revenue / spend).toFixed(2)) : 0,
       }
     })

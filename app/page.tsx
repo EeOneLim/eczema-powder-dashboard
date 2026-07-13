@@ -11,6 +11,7 @@ interface DayRow {
   revenue: number
   orders: number
   spend: number
+  clicks: number
   roas: number
 }
 
