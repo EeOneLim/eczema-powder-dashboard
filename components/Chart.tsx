@@ -4,7 +4,6 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import {
   ResponsiveContainer,
   ComposedChart,
-  Line,
   Bar,
   XAxis,
   YAxis,
@@ -16,8 +15,16 @@ import {
 interface DayRow {
   date: string
   revenue: number
+  newRevenue: number
+  repeatRevenue: number
   spend: number
   clicks: number
+}
+
+const SERIES_LABELS: Record<string, string> = {
+  spend: 'Ad Spend',
+  newRevenue: 'New Revenue',
+  repeatRevenue: 'Returning Revenue',
 }
 
 interface Creative {
@@ -126,17 +133,23 @@ function CustomTooltip({
   label?: string
 }) {
   if (!active || !payload || !payload.length) return null
-  const hasClicks = (payload[0]?.payload?.clicks ?? 0) > 0
+  const row = payload[0]?.payload
+  const hasClicks = (row?.clicks ?? 0) > 0
+  const totalRevenue = (row?.newRevenue ?? 0) + (row?.repeatRevenue ?? 0)
 
   return (
-    <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-3 text-[13px]" style={{ minWidth: 170 }}>
+    <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-3 text-[13px]" style={{ minWidth: 190 }}>
       <p className="font-medium text-gray-700 mb-2">{label ? formatDate(String(label)) : ''}</p>
       {payload.map((p) => (
         <div key={p.name} className="flex justify-between gap-4 text-gray-600">
-          <span>{p.name === 'revenue' ? 'Revenue' : 'Ad Spend'}</span>
+          <span>{SERIES_LABELS[p.name] ?? p.name}</span>
           <span className="font-medium">{formatCurrency(Number(p.value))}</span>
         </div>
       ))}
+      <div className="flex justify-between gap-4 text-gray-700 mt-1 pt-1 border-t border-gray-100">
+        <span>Total Revenue</span>
+        <span className="font-semibold">{formatCurrency(totalRevenue)}</span>
+      </div>
       {hasClicks && (
         <p className="mt-2 text-[11px] text-indigo-500">Click bar to view top creatives →</p>
       )}
@@ -190,19 +203,12 @@ export default function Chart({ data }: { data: DayRow[] }) {
           />
           <Tooltip content={<CustomTooltip />} />
           <Legend
-            formatter={(value) => (value === 'revenue' ? 'Revenue' : 'Ad Spend')}
+            formatter={(value) => SERIES_LABELS[value] ?? value}
             wrapperStyle={{ fontSize: 13 }}
           />
-          <Bar dataKey="spend" fill="#fbbf24" opacity={0.7} radius={[3, 3, 0, 0]} name="spend" />
-          <Line
-            type="monotone"
-            dataKey="revenue"
-            stroke="#10b981"
-            strokeWidth={2.5}
-            dot={false}
-            activeDot={{ r: 4 }}
-            name="revenue"
-          />
+          <Bar dataKey="spend" stackId="spend" fill="#fbbf24" opacity={0.8} radius={[3, 3, 0, 0]} name="spend" />
+          <Bar dataKey="repeatRevenue" stackId="rev" fill="#10b981" name="repeatRevenue" />
+          <Bar dataKey="newRevenue" stackId="rev" fill="#6366f1" radius={[3, 3, 0, 0]} name="newRevenue" />
         </ComposedChart>
       </ResponsiveContainer>
 

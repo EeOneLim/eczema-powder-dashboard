@@ -53,7 +53,11 @@ export async function GET(request: NextRequest) {
       return {
         date,
         revenue,
+        newRevenue: s?.newRevenue ?? 0,
+        repeatRevenue: s?.repeatRevenue ?? 0,
         orders: s?.orders ?? 0,
+        newOrders: s?.newOrders ?? 0,
+        repeatOrders: s?.repeatOrders ?? 0,
         spend,
         clicks: m?.clicks ?? 0,
         roas: spend > 0 ? parseFloat((revenue / spend).toFixed(2)) : 0,

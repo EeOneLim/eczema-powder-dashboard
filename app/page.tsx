@@ -9,14 +9,25 @@ const Chart = dynamic(() => import('@/components/Chart'), { ssr: false })
 interface DayRow {
   date: string
   revenue: number
+  newRevenue: number
+  repeatRevenue: number
   orders: number
+  newOrders: number
+  repeatOrders: number
   spend: number
   clicks: number
   roas: number
 }
 
 interface Metrics {
-  shopify: { total_revenue: number; total_orders: number } | null
+  shopify: {
+    total_revenue: number
+    total_new_revenue: number
+    total_repeat_revenue: number
+    total_orders: number
+    total_new_orders: number
+    total_repeat_orders: number
+  } | null
   meta: { total_spend: number; total_impressions: number; total_clicks: number } | null
   combined: DayRow[]
   errors: { shopify: string | null; meta: string | null }
@@ -111,7 +122,10 @@ export default function DashboardPage() {
   }
 
   const totalRevenue = metrics?.shopify?.total_revenue ?? 0
-  const totalOrders = metrics?.shopify?.total_orders ?? 0
+  const totalNewRevenue = metrics?.shopify?.total_new_revenue ?? 0
+  const totalRepeatRevenue = metrics?.shopify?.total_repeat_revenue ?? 0
+  const totalNewOrders = metrics?.shopify?.total_new_orders ?? 0
+  const totalRepeatOrders = metrics?.shopify?.total_repeat_orders ?? 0
   const totalSpend = metrics?.meta?.total_spend ?? 0
   const roas = totalSpend > 0 ? totalRevenue / totalSpend : 0
 
@@ -196,9 +210,15 @@ export default function DashboardPage() {
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <SummaryCard
-              label="Revenue"
-              value={fmt(totalRevenue)}
-              sub={`${totalOrders} orders`}
+              label="New Customer Rev"
+              value={fmt(totalNewRevenue)}
+              sub={`${totalNewOrders} first-time orders`}
+              color="text-indigo-600"
+            />
+            <SummaryCard
+              label="Returning Rev"
+              value={fmt(totalRepeatRevenue)}
+              sub={`${totalRepeatOrders} repeat orders`}
               color="text-emerald-600"
             />
             <SummaryCard
@@ -211,12 +231,6 @@ export default function DashboardPage() {
               label="ROAS"
               value={fmtRoas(roas)}
               sub="Revenue ÷ Spend"
-              color="text-indigo-600"
-            />
-            <SummaryCard
-              label="Orders"
-              value={totalOrders.toLocaleString()}
-              sub={totalRevenue > 0 && totalOrders > 0 ? `Avg ${fmt(totalRevenue / totalOrders)}` : undefined}
               color="text-purple-600"
             />
           </div>
@@ -224,7 +238,7 @@ export default function DashboardPage() {
 
         {/* Chart */}
         <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <h2 className="text-sm font-semibold text-gray-700 mb-4">Revenue vs Ad Spend</h2>
+          <h2 className="text-sm font-semibold text-gray-700 mb-4">Ad Spend vs Revenue (New + Returning)</h2>
           {loading ? (
             <div className="h-64 animate-pulse bg-gray-100 rounded-lg" />
           ) : (
@@ -249,8 +263,9 @@ export default function DashboardPage() {
                 <thead>
                   <tr className="bg-gray-50 text-left">
                     <th className="px-6 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Date</th>
-                    <th className="px-6 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide text-right">Revenue</th>
-                    <th className="px-6 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide text-right">Orders</th>
+                    <th className="px-6 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide text-right">New Rev</th>
+                    <th className="px-6 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide text-right">Returning Rev</th>
+                    <th className="px-6 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide text-right">Total Rev</th>
                     <th className="px-6 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide text-right">Ad Spend</th>
                     <th className="px-6 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide text-right">ROAS</th>
                   </tr>
@@ -258,7 +273,7 @@ export default function DashboardPage() {
                 <tbody className="divide-y divide-gray-50">
                   {(metrics?.combined ?? []).length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-6 py-8 text-center text-gray-400">
+                      <td colSpan={6} className="px-6 py-8 text-center text-gray-400">
                         No data for this period
                       </td>
                     </tr>
@@ -266,10 +281,11 @@ export default function DashboardPage() {
                     [...(metrics?.combined ?? [])].reverse().map((row) => (
                       <tr key={row.date} className="hover:bg-gray-50 transition-colors">
                         <td className="px-6 py-3 text-gray-700">{formatTableDate(row.date)}</td>
-                        <td className="px-6 py-3 text-right text-emerald-700 font-medium">{fmt(row.revenue)}</td>
-                        <td className="px-6 py-3 text-right text-gray-600">{row.orders}</td>
+                        <td className="px-6 py-3 text-right text-indigo-700 font-medium">{fmt(row.newRevenue)}</td>
+                        <td className="px-6 py-3 text-right text-emerald-700 font-medium">{fmt(row.repeatRevenue)}</td>
+                        <td className="px-6 py-3 text-right text-gray-700 font-medium">{fmt(row.revenue)}</td>
                         <td className="px-6 py-3 text-right text-amber-700">{fmt(row.spend)}</td>
-                        <td className="px-6 py-3 text-right text-indigo-700 font-medium">{fmtRoas(row.roas)}</td>
+                        <td className="px-6 py-3 text-right text-purple-700 font-medium">{fmtRoas(row.roas)}</td>
                       </tr>
                     ))
                   )}
