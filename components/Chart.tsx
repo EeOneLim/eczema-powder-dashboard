@@ -151,7 +151,7 @@ function CustomTooltip({
         <span className="font-semibold">{formatCurrency(totalRevenue)}</span>
       </div>
       {hasClicks && (
-        <p className="mt-2 text-[11px] text-indigo-500">Click bar to view top creatives →</p>
+        <p className="mt-2 text-[11px] text-indigo-500">Click the yellow bar for the top 2 creatives →</p>
       )}
     </div>
   )
