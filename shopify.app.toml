@@ -1,0 +1,21 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "ac9e22c1bc94a64415ecf0cad978018d"
+name = "Ads Dashboard"
+application_url = "https://eczema-powder-dashboard.vercel.app"
+embedded = false
+
+[webhooks]
+api_version = "2026-04"
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = "read_orders,read_all_orders"
+optional_scopes = [ ]
+use_legacy_install_flow = false
+
+[auth]
+redirect_urls = [
+  "https://eczema-powder-dashboard.vercel.app/api/auth/shopify/callback",
+  "http://localhost:9876/callback"
+]

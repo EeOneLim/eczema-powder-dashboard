@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
 
   const state = crypto.randomBytes(16).toString('hex')
   const redirectUri = `${appUrl}/api/auth/shopify/callback`
-  const scopes = 'read_orders'
+  const scopes = 'read_orders,read_all_orders'
 
   const authUrl =
     `https://${store}/admin/oauth/authorize` +

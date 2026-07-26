@@ -25,6 +25,21 @@ interface RawOrder {
   customer: { id: number; orders_count?: number } | null
 }
 
+// Shopify REST allows ~2 requests/second; bursting past it returns 429.
+// Retry on 429, honoring the Retry-After header, so the per-customer
+// lookups below can't sink the whole request.
+async function shopifyFetch(url: string, token: string): Promise<Response> {
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(url, {
+      headers: { 'X-Shopify-Access-Token': token },
+      cache: 'no-store',
+    })
+    if (res.status !== 429 || attempt >= 6) return res
+    const retryAfter = parseFloat(res.headers.get('Retry-After') ?? '1')
+    await new Promise((r) => setTimeout(r, Math.max(retryAfter, 0.5) * 1000))
+  }
+}
+
 // Find a customer's lifetime-earliest order id (across all time, not just the
 // requested window) so we can tell which of their orders was their first.
 // We fetch the customer's orders and compute the minimum created_at ourselves
@@ -38,10 +53,7 @@ async function fetchEarliestOrderId(
   const url =
     `https://${store}/admin/api/2024-01/orders.json` +
     `?status=any&customer_id=${customerId}&limit=250&fields=id,created_at`
-  const res = await fetch(url, {
-    headers: { 'X-Shopify-Access-Token': token },
-    cache: 'no-store',
-  })
+  const res = await shopifyFetch(url, token)
   if (!res.ok) {
     const body = await res.text()
     throw new Error(`Shopify API ${res.status}: ${body}`)
@@ -79,10 +91,7 @@ export async function getShopifyMetrics(
     `&fields=id,total_price,created_at,customer&limit=250`
 
   while (nextUrl) {
-    const res: Response = await fetch(nextUrl, {
-      headers: { 'X-Shopify-Access-Token': token },
-      cache: 'no-store',
-    })
+    const res: Response = await shopifyFetch(nextUrl, token)
     if (!res.ok) {
       const body = await res.text()
       throw new Error(`Shopify API ${res.status}: ${body}`)
@@ -105,9 +114,17 @@ export async function getShopifyMetrics(
     }
   }
   const earliestOrderId = new Map<number, number | null>()
+  const lookupIds = [...needLookup]
+  // Bound concurrency so we stay near Shopify's ~2 req/sec ceiling; the 429
+  // retry in shopifyFetch is the backstop if we still burst over it.
+  const CONCURRENCY = 2
+  let cursor = 0
   await Promise.all(
-    [...needLookup].map(async (id) => {
-      earliestOrderId.set(id, await fetchEarliestOrderId(id, store, token))
+    Array.from({ length: Math.min(CONCURRENCY, lookupIds.length) }, async () => {
+      while (cursor < lookupIds.length) {
+        const id = lookupIds[cursor++]
+        earliestOrderId.set(id, await fetchEarliestOrderId(id, store, token))
+      }
     })
   )
 
