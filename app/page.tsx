@@ -199,8 +199,8 @@ export default function DashboardPage() {
 
         {/* Summary cards */}
         {loading ? (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {[...Array(4)].map((_, i) => (
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            {[...Array(5)].map((_, i) => (
               <div key={i} className="bg-white rounded-xl border border-gray-200 p-5 animate-pulse">
                 <div className="h-3 bg-gray-200 rounded w-24 mb-3" />
                 <div className="h-7 bg-gray-200 rounded w-32" />
@@ -208,7 +208,7 @@ export default function DashboardPage() {
             ))}
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <SummaryCard
               label="New Customer Rev"
               value={fmt(totalNewRevenue)}
@@ -220,6 +220,12 @@ export default function DashboardPage() {
               value={fmt(totalRepeatRevenue)}
               sub={`${totalRepeatOrders} repeat orders`}
               color="text-emerald-600"
+            />
+            <SummaryCard
+              label="Total Revenue"
+              value={fmt(totalRevenue)}
+              sub={`${totalNewOrders + totalRepeatOrders} orders`}
+              color="text-gray-900"
             />
             <SummaryCard
               label="Ad Spend"
