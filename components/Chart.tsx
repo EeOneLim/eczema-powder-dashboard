@@ -71,7 +71,7 @@ function CreativesModal({ date, onClose }: { date: string; onClose: () => void }
         >
           ×
         </button>
-        <h3 className="text-sm font-semibold text-gray-700 mb-1">Top Creatives by Clicks</h3>
+        <h3 className="text-sm font-semibold text-gray-700 mb-1">Top 2 creatives by clicks</h3>
         <p className="text-xs text-gray-400 mb-4">{formatDate(date)}</p>
 
         {loading && (
