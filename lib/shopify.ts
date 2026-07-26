@@ -25,17 +25,19 @@ interface RawOrder {
   customer: { id: number; orders_count?: number } | null
 }
 
-// Look up a customer's lifetime-earliest order id (across all time, not just the
+// Find a customer's lifetime-earliest order id (across all time, not just the
 // requested window) so we can tell which of their orders was their first.
-async function fetchFirstOrderId(
+// We fetch the customer's orders and compute the minimum created_at ourselves
+// rather than relying on the REST orders endpoint's `order` sort param, which
+// is not honored reliably (it commonly returns newest-first regardless).
+async function fetchEarliestOrderId(
   customerId: number,
   store: string,
   token: string
 ): Promise<number | null> {
-  const order = encodeURIComponent('created_at asc')
   const url =
     `https://${store}/admin/api/2024-01/orders.json` +
-    `?status=any&customer_id=${customerId}&order=${order}&limit=1&fields=id`
+    `?status=any&customer_id=${customerId}&limit=250&fields=id,created_at`
   const res = await fetch(url, {
     headers: { 'X-Shopify-Access-Token': token },
     cache: 'no-store',
@@ -45,7 +47,11 @@ async function fetchFirstOrderId(
     throw new Error(`Shopify API ${res.status}: ${body}`)
   }
   const json = await res.json()
-  return json.orders?.[0]?.id ?? null
+  const list: Array<{ id: number; created_at: string }> = json.orders ?? []
+  if (!list.length) return null
+  return list.reduce((earliest, o) =>
+    Date.parse(o.created_at) < Date.parse(earliest.created_at) ? o : earliest
+  ).id
 }
 
 export async function getShopifyMetrics(
@@ -88,20 +94,20 @@ export async function getShopifyMetrics(
     nextUrl = next ? next[1] : null
   }
 
-  // A customer's embedded orders_count is their lifetime total as-of-now:
-  // 1 means this is definitively their only/first order (new, no extra call).
-  // For repeat buyers (>1) we look up their earliest order once to decide which
-  // of their orders in this window (if any) was the lifetime-first one.
-  const repeatCustomerIds = new Set<number>()
+  // Decide which customers need an earliest-order lookup. We only skip the
+  // lookup when orders_count is *exactly* 1 (provably a single-order customer,
+  // so this order is their first). Any other value — including a missing count —
+  // gets the lookup, so we never mislabel a returning order as new by default.
+  const needLookup = new Set<number>()
   for (const o of orders) {
-    if (o.customer && (o.customer.orders_count ?? 1) > 1) {
-      repeatCustomerIds.add(o.customer.id)
+    if (o.customer && o.customer.orders_count !== 1) {
+      needLookup.add(o.customer.id)
     }
   }
-  const firstOrderId = new Map<number, number | null>()
+  const earliestOrderId = new Map<number, number | null>()
   await Promise.all(
-    [...repeatCustomerIds].map(async (id) => {
-      firstOrderId.set(id, await fetchFirstOrderId(id, store, token))
+    [...needLookup].map(async (id) => {
+      earliestOrderId.set(id, await fetchEarliestOrderId(id, store, token))
     })
   )
 
@@ -111,11 +117,17 @@ export async function getShopifyMetrics(
     if (date < startDate || date > endDate) continue // safety: skip any out-of-range dates
     const price = parseFloat(o.total_price)
 
-    // Guest orders (no customer) are treated as new customers.
-    const isNew =
-      !o.customer ||
-      (o.customer.orders_count ?? 1) <= 1 ||
-      firstOrderId.get(o.customer.id) === o.id
+    // Guest orders (no customer) count as new. Single-order customers are new.
+    // Otherwise it's new only if this order is that customer's lifetime-earliest.
+    let isNew: boolean
+    if (!o.customer) {
+      isNew = true
+    } else if (o.customer.orders_count === 1) {
+      isNew = true
+    } else {
+      const earliest = earliestOrderId.get(o.customer.id)
+      isNew = earliest == null ? true : earliest === o.id
+    }
 
     const prev =
       map.get(date) ??
